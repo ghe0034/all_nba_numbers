@@ -1,5 +1,7 @@
 package com.baloncesto.ingesta.http;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 /**
  * Backoff exponencial con jitter, aplicado unicamente ante respuestas
  * 429 (rate limited), 403 (bloqueo/headers invalidos) o 5xx (error del servidor).
@@ -8,13 +10,28 @@ package com.baloncesto.ingesta.http;
  */
 public final class RetryPolicy {
 
+    private final int maxRetries;
+    private final long baseDelayMillis;
+    private final long maxDelayMillis;
+
     /**
      * @param maxRetries      numero maximo de reintentos antes de abandonar la tarea
      * @param baseDelayMillis delay base usado en la formula de backoff exponencial
      * @param maxDelayMillis  tope maximo de espera entre reintentos
      */
     public RetryPolicy(int maxRetries, long baseDelayMillis, long maxDelayMillis) {
-        throw new UnsupportedOperationException("Pendiente de implementar");
+        if (maxRetries < 0) {
+            throw new IllegalArgumentException("maxRetries no puede ser negativo");
+        }
+        if (baseDelayMillis <= 0) {
+            throw new IllegalArgumentException("baseDelayMillis debe ser > 0");
+        }
+        if (maxDelayMillis < baseDelayMillis) {
+            throw new IllegalArgumentException("maxDelayMillis debe ser >= baseDelayMillis");
+        }
+        this.maxRetries = maxRetries;
+        this.baseDelayMillis = baseDelayMillis;
+        this.maxDelayMillis = maxDelayMillis;
     }
 
     /**
@@ -26,7 +43,9 @@ public final class RetryPolicy {
      * @return {@code true} si se debe reintentar, {@code false} si se debe abandonar la tarea
      */
     public boolean shouldRetry(int attempt, int httpStatusCode) {
-        throw new UnsupportedOperationException("Pendiente de implementar");
+        boolean retryable = httpStatusCode == 429 || httpStatusCode == 403
+                || (httpStatusCode >= 500 && httpStatusCode <= 599);
+        return retryable && attempt <= maxRetries;
     }
 
     /**
@@ -37,6 +56,12 @@ public final class RetryPolicy {
      * @return milisegundos a esperar antes de reintentar
      */
     public long computeDelayMillis(int attempt) {
-        throw new UnsupportedOperationException("Pendiente de implementar");
+        // Con 2^40 ya se supera cualquier tope razonable; evita overflow en el shift.
+        long exponential = baseDelayMillis * (1L << Math.min(Math.max(attempt, 0), 40));
+        if (exponential <= 0 || exponential >= maxDelayMillis) {
+            return maxDelayMillis;
+        }
+        long jitter = ThreadLocalRandom.current().nextLong(baseDelayMillis);
+        return Math.min(exponential + jitter, maxDelayMillis);
     }
 }

@@ -9,19 +9,40 @@ package com.baloncesto.ingesta.http;
  */
 public final class RateLimiter {
 
+    private final long minDelayNanos;
+    private long nextAllowedNanos;
+    private boolean firstCall = true;
+
     /**
      * @param minDelayMillis delay minimo garantizado entre el inicio de dos
      *                       peticiones consecutivas
      */
     public RateLimiter(long minDelayMillis) {
-        throw new UnsupportedOperationException("Pendiente de implementar");
+        if (minDelayMillis < 0) {
+            throw new IllegalArgumentException("minDelayMillis no puede ser negativo");
+        }
+        this.minDelayNanos = minDelayMillis * 1_000_000L;
     }
 
     /**
      * Bloquea el hilo actual el tiempo necesario para respetar el delay
      * minimo configurado desde la ultima invocacion a este metodo.
      */
-    public void acquire() {
-        throw new UnsupportedOperationException("Pendiente de implementar");
+    public synchronized void acquire() {
+        long now = System.nanoTime();
+        if (!firstCall) {
+            long remaining = nextAllowedNanos - now;
+            if (remaining > 0) {
+                try {
+                    Thread.sleep(remaining / 1_000_000L, (int) (remaining % 1_000_000L));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrumpido esperando el rate limiter", e);
+                }
+                now = System.nanoTime();
+            }
+        }
+        firstCall = false;
+        nextAllowedNanos = now + minDelayNanos;
     }
 }
