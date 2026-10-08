@@ -1,5 +1,7 @@
 package com.baloncesto.ingesta.config;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.util.Map;
 
 /**
@@ -16,6 +18,7 @@ import java.util.Map;
  * @param fixedParams      parametros de query fijos para esta variante (p.ej. PlayerOrTeam=P)
  * @param seasonParamName  nombre del parametro de query donde se inyecta la temporada (p.ej. "Season")
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record EndpointDefinition(
         String id,
         String path,

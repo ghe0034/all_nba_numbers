@@ -1,3 +1,4 @@
 # Credenciales y configuracion local
 secrets/
 *.local.properties
+target/
