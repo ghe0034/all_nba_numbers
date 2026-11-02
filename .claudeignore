@@ -1,0 +1,8 @@
+PROMPTS_USADOS.md
+target/
+logs/
+secrets/
+dependency-reduced-pom.xml
+.vscode/
+.idea/
+*.iml
