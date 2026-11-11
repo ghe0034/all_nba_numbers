@@ -1,25 +1,66 @@
-"""Cliente HTTP para stats.nba.com: headers, rate limit, reintentos y validación."""
+"""Cliente HTTP para stats.nba.com con reintentos exponenciales (tenacity)."""
 
 import json
-import random
-import time
-from collections.abc import Callable
 from typing import Any
+
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 
 from nba_ingest.catalog import EndpointDefinition
 from nba_ingest.headers import build_headers
-from nba_ingest.retry import compute_delay_seconds, parse_retry_after, should_retry
 
-BASE_URL = "https://stats.nba.com"
 SUCCESS_STATUS_CODE = 200
+RETRYABLE_STATUS_CODES = frozenset({403, 429, 500, 502, 503, 504})
 DEFAULT_TIMEOUT_SECONDS = (10.0, 60.0)  # (conexión, lectura)
-DEFAULT_MAX_ATTEMPTS = 5
-DEFAULT_BASE_DELAY_SECONDS = 2.0
-DEFAULT_MAX_DELAY_SECONDS = 60.0
+MAX_ATTEMPTS = 5
 
 
 class NbaApiError(Exception):
-    """La petición no pudo completarse (estado no recuperable o reintentos agotados)."""
+    """La petición no pudo completarse."""
+
+
+class NbaApiRetryableError(NbaApiError):
+    """Respuesta con estado transitorio; es la única que se reintenta."""
+
+
+@retry(
+    retry=retry_if_exception_type(NbaApiRetryableError),
+    stop=stop_after_attempt(MAX_ATTEMPTS),
+    wait=wait_exponential_jitter(multiplier=2, max=60),
+    reraise=True,
+)
+def _get_once(
+    session: Any,
+    url: str,
+    params: dict[str, str],
+    headers: dict[str, str],
+    timeout: tuple[float, float],
+    endpoint_id: str,
+    season: str,
+) -> bytes:
+    """Un intento de petición; lanza un error reintentable si el estado es transitorio."""
+    
+    # Añadimos impersonate="chrome" para resolver el rechazo TLS (Error 10054)
+    response = session.get(
+        url, 
+        params=params, 
+        headers=headers, 
+        timeout=timeout, 
+        impersonate="chrome"
+    )
+
+    if response.status_code == SUCCESS_STATUS_CODE:
+        json.loads(response.content)
+        return response.content
+
+    message = f"{endpoint_id} {season}: HTTP {response.status_code}"
+    if response.status_code in RETRYABLE_STATUS_CODES:
+        raise NbaApiRetryableError(message)
+    raise NbaApiError(message)
 
 
 def build_request_params(endpoint: EndpointDefinition, season: str) -> dict[str, str]:
@@ -32,39 +73,16 @@ def fetch_endpoint(
     season: str,
     *,
     session: Any,
-    acquire_slot: Callable[[], None],
-    sleep: Callable[[float], None] = time.sleep,
-    rng: random.Random | None = None,
-    max_attempts: int = DEFAULT_MAX_ATTEMPTS,
-    base_delay: float = DEFAULT_BASE_DELAY_SECONDS,
-    max_delay: float = DEFAULT_MAX_DELAY_SECONDS,
     timeout: tuple[float, float] = DEFAULT_TIMEOUT_SECONDS,
     user_agent: str | None = None,
 ) -> bytes:
-    """Descarga un endpoint para una temporada y devuelve los bytes originales.
-
-    `acquire_slot` se invoca antes de cada intento. El cuerpo se valida como JSON
-    pero se devuelve sin re-serializar.
-    """
-    url = BASE_URL + endpoint.path
-    params = build_request_params(endpoint, season)
-    headers = build_headers(user_agent)
-    attempt = 1
-
-    while True:
-        acquire_slot()
-        response = session.get(url, params=params, headers=headers, timeout=timeout)
-
-        if response.status_code == SUCCESS_STATUS_CODE:
-            json.loads(response.content)
-            return response.content
-
-        if not should_retry(response.status_code, attempt, max_attempts):
-            raise NbaApiError(
-                f"{endpoint.id} {season}: HTTP {response.status_code} "
-                f"tras {attempt} intento(s)"
-            )
-
-        retry_after = parse_retry_after(response.headers.get("Retry-After"))
-        sleep(compute_delay_seconds(attempt, base_delay, max_delay, rng=rng, retry_after=retry_after))
-        attempt += 1
+    """Descarga un endpoint para una temporada y devuelve los bytes originales."""
+    return _get_once(
+        session,
+        endpoint.url,
+        build_request_params(endpoint, season),
+        build_headers(user_agent),
+        timeout,
+        endpoint.id,
+        season,
+    )

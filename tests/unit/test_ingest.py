@@ -10,8 +10,8 @@ from nba_ingest.ingest import (
     run_tasks,
 )
 
-ENDPOINT_A = EndpointDefinition("a", "/stats/a", "Season", {})
-ENDPOINT_B = EndpointDefinition("b", "/stats/b", "Season", {})
+ENDPOINT_A = EndpointDefinition("a", "https://stats.nba.com/stats/a", "Season", {})
+ENDPOINT_B = EndpointDefinition("b", "https://stats.nba.com/stats/b", "Season", {})
 SEASONS = ["2024-25", "2025-26"]
 
 
@@ -64,3 +64,12 @@ def test_all_succeeded_requires_every_task_to_succeed():
 
 def test_all_succeeded_is_false_when_there_is_no_work():
     assert not all_succeeded([])
+
+
+def test_run_tasks_pauses_between_tasks_but_not_after_the_last_one():
+    pauses = []
+    tasks = build_tasks([ENDPOINT_A], SEASONS)
+
+    run_tasks(tasks, lambda task: None, pause_seconds=1.5, sleep=pauses.append)
+
+    assert pauses == [1.5]

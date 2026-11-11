@@ -4,7 +4,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-DEFAULT_MIN_INTERVAL_SECONDS = 1.0  # provisional: se fija en la tarea 0
+DEFAULT_PAUSE_SECONDS = 1.0  # provisional: se ajusta tras la prueba real
 
 
 @dataclass(frozen=True)
@@ -12,7 +12,7 @@ class Settings:
     bucket_name: str
     gcs_project: str | None
     user_agent: str | None
-    min_interval_seconds: float
+    pause_seconds: float
 
 
 def load_settings(environ: Mapping[str, str] = os.environ) -> Settings:
@@ -25,7 +25,5 @@ def load_settings(environ: Mapping[str, str] = os.environ) -> Settings:
         bucket_name=bucket_name,
         gcs_project=environ.get("NBA_GCS_PROJECT") or None,
         user_agent=environ.get("NBA_USER_AGENT") or None,
-        min_interval_seconds=float(
-            environ.get("NBA_MIN_INTERVAL_SECONDS", DEFAULT_MIN_INTERVAL_SECONDS)
-        ),
+        pause_seconds=float(environ.get("NBA_PAUSE_SECONDS", DEFAULT_PAUSE_SECONDS)),
     )

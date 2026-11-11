@@ -17,9 +17,6 @@ def test_missing_bucket_is_rejected():
         load_settings({})
 
 
-def test_min_interval_has_default_and_can_be_overridden():
-    default_settings = load_settings({"NBA_GCS_BUCKET": "b"})
-    custom_settings = load_settings({"NBA_GCS_BUCKET": "b", "NBA_MIN_INTERVAL_SECONDS": "3.5"})
-
-    assert default_settings.min_interval_seconds > 0
-    assert custom_settings.min_interval_seconds == 3.5
+def test_pause_seconds_has_default_and_can_be_overridden():
+    assert load_settings({"NBA_GCS_BUCKET": "b"}).pause_seconds > 0
+    assert load_settings({"NBA_GCS_BUCKET": "b", "NBA_PAUSE_SECONDS": "2.5"}).pause_seconds == 2.5

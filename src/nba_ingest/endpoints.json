@@ -1,1 +1,13 @@
-[]
+{
+  "leaguegamelog": {
+    "url": "https://stats.nba.com/stats/leaguegamelog",
+    "fixedParams": {
+      "PlayerOrTeam": "P",
+      "Direction": "DESC",
+      "LeagueID": "00",
+      "Sorter": "PTS",
+      "SeasonType": "Regular Season"
+    },
+    "seasonParamName": "Season"
+  }
+}
