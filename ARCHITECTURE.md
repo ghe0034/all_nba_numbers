@@ -73,6 +73,7 @@ sus tests en `tests/` escritos antes.
 
 ## Estado actual
 
-Pivote de Java a Python: el código Java anterior fue eliminado y el proyecto solo
-contiene el esqueleto del paquete `src/nba_ingest/`, el directorio `tests/` y
-`requirements.txt`. Ningún módulo de negocio está implementado todavía.
+Módulos y tests unitarios implementados (55 tests, con `requests` y GCS simulados). El
+catálogo `endpoints.json` está vacío: la verificación de endpoints (tarea 0, ver
+`docs/spike_endpoints.md`) está pendiente, por lo que aún no se ejecuta ninguna
+descarga real.

@@ -44,4 +44,4 @@ requirements.txt
 
 ## Estado y flujo de trabajo
 
-El proyecto acaba de pivotar desde Java a Python. Hasta ahora solo existe el esqueleto (paquete vacío y `tests/` vacío). Los módulos se implementan de forma iterativa: el usuario indica explícitamente qué implementar en cada paso y no se deben adelantar módulos fuera de ese alcance (p. ej. clientes HTTP o lógica de GCS).
+Fase 1 implementada según [PLAN_FASE1.md](PLAN_FASE1.md) en sus tareas 1 a 11 (módulos y tests). Pendiente: tarea 0 (spike de endpoints; `endpoints.json` está vacío hasta completarlo) y tareas 12-13 (ejecución real contra GCS). No añadir parámetros de API sin evidencia en `docs/spike_endpoints.md`.
