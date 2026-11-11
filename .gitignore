@@ -2,3 +2,6 @@
 secrets/
 *.local.properties
 target/
+.venv/
+__pycache__/
+.pytest_cache/

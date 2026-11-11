@@ -2,16 +2,19 @@
 
 ## Resumen
 
-Esta fase implementa una aplicación batch en Java puro que descarga las últimas 10
+Esta fase implementa un script batch en Python 3.10+ que descarga las últimas 10
 temporadas desde `stats.nba.com` y sube los JSON crudos (sin transformar) a un bucket
 de Google Cloud Storage, organizados como capa Bronze particionada por endpoint,
 temporada y fecha de descarga.
 
+Se ejecuta como un único proceso de línea de comandos (`python -m nba_ingest`), sin
+servicios ni framework. Dependencias: `requests` (HTTP), `google-cloud-storage` (GCS) y
+`pytest` (tests).
+
 El reto técnico central es evitar bloqueos del servidor de la NBA: se resuelve con
-headers HTTP específicos (`NbaStatsHeaders`), un *rate limiter* proactivo
-(`RateLimiter`) que espacía todas las peticiones, y una política de reintentos con
-backoff exponencial (`RetryPolicy`) que reacciona ante respuestas 429/403/5xx sin
-abortar el resto del batch.
+headers HTTP específicos, un *rate limiter* proactivo que espacía todas las peticiones,
+y una política de reintentos con backoff exponencial que reacciona ante respuestas
+429/403/5xx sin abortar el resto del batch.
 
 El volumen de datos del jugador se obtiene con una sola petición por temporada al
 endpoint `leaguegamelog` usando `PlayerOrTeam=P` (en vez de iterar por `PlayerID`),
@@ -22,30 +25,27 @@ lo que mantiene el batch completo en el orden de ~40 peticiones totales
 
 ```mermaid
 flowchart TD
-    Start([Inicio: IngestionOrchestrator.runAll]) --> Loop{Para cada<br/>endpoint x temporada}
-    Loop --> Task[IngestionTask.execute]
+    Start([Inicio: run_all]) --> Loop{Para cada<br/>endpoint x temporada}
+    Loop --> Task[run_task]
 
-    Task --> RateLimit[RateLimiter.acquire<br/>espera el delay minimo configurado]
-    RateLimit --> Headers[NbaStatsHeaders.buildHeaders<br/>User-Agent, Referer, Origin,<br/>x-nba-stats-origin, x-nba-stats-token...]
-    Headers --> Send[NbaStatsHttpClient.get<br/>HttpClient.send a stats.nba.com]
+    Task --> RateLimit[acquire_delay<br/>espera el delay minimo configurado]
+    RateLimit --> Headers[build_headers<br/>User-Agent, Referer, Origin,<br/>x-nba-stats-origin, x-nba-stats-token...]
+    Headers --> Send[fetch_endpoint<br/>requests.get a stats.nba.com]
 
     Send --> Status{Codigo de<br/>respuesta}
 
-    Status -->|200 OK| Gzip{Content-Encoding<br/>gzip?}
-    Gzip -->|si| Decompress[Descomprimir con GZIPInputStream]
-    Gzip -->|no| Validate
-    Decompress --> Validate[JsonUtils.isValidJson]
+    Status -->|200 OK| Validate[validar JSON]
 
-    Status -->|429 / 403 / 5xx| Retry{RetryPolicy.shouldRetry<br/>intento, codigo}
-    Retry -->|si, quedan intentos| Backoff[RetryPolicy.computeDelayMillis<br/>backoff exponencial + jitter]
+    Status -->|429 / 403 / 5xx| Retry{should_retry<br/>intento, codigo}
+    Retry -->|si, quedan intentos| Backoff[compute_delay_seconds<br/>backoff exponencial + jitter]
     Backoff --> RateLimit
-    Retry -->|no, reintentos agotados| Fail[NbaApiException]
+    Retry -->|no, reintentos agotados| Fail[error de tarea]
 
-    Validate -->|JSON valido| BuildPath[BronzePathBuilder.buildPath<br/>bronze/endpoint/season=.../download_date=.../archivo.json]
-    BuildPath --> Upload[GcsUploader.upload<br/>sube bytes crudos a GCS]
-    Upload --> Success[IngestionResult exitoso]
+    Validate -->|JSON valido| BuildPath[build_bronze_path<br/>bronze/endpoint/season=.../download_date=.../archivo.json]
+    BuildPath --> Upload[upload_bytes<br/>sube bytes crudos a GCS]
+    Upload --> Success[resultado exitoso]
 
-    Fail --> ResultFail[IngestionResult fallido]
+    Fail --> ResultFail[resultado fallido]
 
     Success --> Loop
     ResultFail --> Loop
@@ -54,25 +54,25 @@ flowchart TD
     Summary --> End([Fin: exit code 0 o 1])
 ```
 
-## Componentes por paquete
+## Organización del código
 
-- **`config`** — qué se descarga: rango de temporadas (`SeasonRange`), catálogo de
-  endpoints (`EndpointsCatalog`, `EndpointDefinition`) y configuración general
-  (`AppConfig`).
-- **`http`** — cómo hablarle a `stats.nba.com` sin bloqueo: headers (`NbaStatsHeaders`),
-  rate limiting (`RateLimiter`), reintentos (`RetryPolicy`) y el cliente HTTP
-  (`NbaStatsHttpClient`) que los integra.
-- **`storage`** — dónde y cómo se guarda en GCS: construcción del path particionado
-  (`BronzePathBuilder`) y subida (`GcsUploader`).
-- **`ingest`** — orquestación: una tarea por combinación endpoint/temporada
-  (`IngestionTask`, `IngestionResult`) coordinadas por `IngestionOrchestrator`, que
+Paquete `src/nba_ingest/`, con módulos de funciones:
+
+- **`config`** — qué se descarga: rango de temporadas, catálogo de endpoints
+  (`endpoints.json`) y configuración general (variables de entorno / overrides locales).
+- **`http`** — cómo hablarle a `stats.nba.com` sin bloqueo: headers, rate limiting,
+  reintentos y cliente HTTP basado en `requests`.
+- **`storage`** — dónde y cómo se guarda en GCS: construcción del path particionado y
+  subida con `google-cloud-storage`.
+- **`ingest`** — orquestación: una tarea por combinación endpoint/temporada, que
   continúa el batch ante fallos parciales.
-- **`util`** — utilidades mínimas sin lógica de negocio (`JsonUtils`).
+- **`util`** — utilidades mínimas sin lógica de negocio.
+
+Los nombres concretos de módulos y funciones se fijarán al implementar cada paso, con
+sus tests en `tests/` escritos antes.
 
 ## Estado actual
 
-Este documento corresponde al esqueleto inicial del proyecto: todas las clases
-están definidas con sus firmas y JavaDoc, pero sin lógica interna implementada
-(los métodos lanzan `UnsupportedOperationException`). La implementación se abordará
-de forma iterativa en los siguientes pasos, siguiendo el orden de tareas de
-`PLAN_FASE1.md`.
+Pivote de Java a Python: el código Java anterior fue eliminado y el proyecto solo
+contiene el esqueleto del paquete `src/nba_ingest/`, el directorio `tests/` y
+`requirements.txt`. Ningún módulo de negocio está implementado todavía.

@@ -1,34 +1,47 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guía para Claude Code al trabajar en este repositorio.
 
 ## Proyecto
 
-Batch en Java 17 (Maven, sin framework) que descarga las últimas 10 temporadas de `stats.nba.com` y sube los JSON crudos a una capa Bronze en Google Cloud Storage. El diseño completo y el diagrama de flujo están en [ARCHITECTURE.md](ARCHITECTURE.md). Código, JavaDoc y documentación están en español.
+Script batch en Python 3.10+ que descarga las últimas 10 temporadas de `stats.nba.com` y sube los JSON crudos a una capa Bronze en Google Cloud Storage. Diseño completo en [ARCHITECTURE.md](ARCHITECTURE.md).
+
+Stack (obligatorio):
+- **HTTP:** `requests`. No usar `urllib`, `httpx` ni `aiohttp`.
+- **Tests:** `pytest`. No usar `unittest`.
+- **Estilo:** módulos con funciones puras. Evitar clases salvo que haya una razón justificada (p. ej. excepciones propias o `dataclasses` para datos inmutables).
+- **Storage:** `google-cloud-storage`.
+
+Código e identificadores en inglés. Docstrings y comentarios indispensables en español.
+
+## Reglas estrictas
+
+- **NUNCA inventar parámetros de la API** (nombres de endpoint, query params, headers, valores). Si un parámetro no está verificado en la documentación o en una respuesta real, pedirlo al usuario en lugar de suponerlo.
+- **Tests primero (TDD).** Antes de implementar cualquier función, escribir el test en `tests/` y verificar que falla. Solo después, el código que lo hace pasar.
+- No añadir `try/except`, logging exhaustivo ni aserciones complejas salvo petición explícita.
 
 ## Comandos
 
 ```
-mvn test                                   # todos los tests
-mvn test -Dtest=RetryPolicyTest            # una clase
-mvn test -Dtest=RetryPolicyTest#delayNeverExceedsMax   # un test
-mvn package                                # jar ejecutable (shade) en target/ingesta-fase1.jar
+.venv\Scripts\activate                              # activar entorno (Windows)
+pip install -r requirements.txt                     # dependencias
+pytest                                              # todos los tests
+pytest tests/test_rate_limiter.py                   # un archivo
+pytest tests/test_rate_limiter.py::test_name        # un test
 ```
 
 No hay linter configurado.
 
-## Arquitectura
+## Estructura
 
-Cada tarea es un par endpoint × temporada: `IngestionOrchestrator` itera las tareas y continúa ante fallos parciales; `IngestionTask` ejecuta `RateLimiter.acquire` → `NbaStatsHttpClient.get` (con `NbaStatsHeaders`) → validar JSON → `BronzePathBuilder` → `GcsUploader`. Ante 429/403/5xx, `RetryPolicy` decide el reintento y el flujo vuelve al rate limiter. El exit code de `App` es 0 solo si todas las tareas tuvieron éxito.
+```
+src/nba_ingest/      # paquete principal (__init__.py)
+tests/               # tests pytest
+requirements.txt
+```
 
-Puntos que no se ven leyendo un solo archivo:
-- Los endpoints se definen en `src/main/resources/endpoints.json` (`EndpointDefinition`: `id`, `path` relativo, `fixedParams`, `seasonParamName`). La temporada **no** va en `fixedParams`; se inyecta por tarea bajo `seasonParamName`. Agregar o cambiar una variante no requiere recompilar código.
-- Los datos de jugador salen de `leaguegamelog` con `PlayerOrTeam=P` (una petición por temporada), no iterando por `PlayerID`.
-- `NbaStatsHeaders` es el único lugar a tocar si la NBA cambia los headers requeridos; el User-Agent se puede sobrescribir (por `AppConfig` o por parámetro).
-- El `RateLimiter` se aplica siempre antes de cada request (también en reintentos); `RetryPolicy` usa `min(base·2^intento + jitter(0, base), max)` con intento 1-indexado.
+`secrets/`, `*.local.properties`, `.venv/` y `__pycache__/` están en `.gitignore`. Las credenciales de GCP nunca van en el repositorio.
 
 ## Estado y flujo de trabajo
 
-Se implementa de forma iterativa con TDD (test primero, luego código). Implementado y con tests: `RateLimiter`, `RetryPolicy`, `NbaStatsHeaders`, `EndpointsCatalog`/`EndpointDefinition`. El resto de clases (`App`, `AppConfig.load`, `SeasonRange`, `NbaStatsHttpClient`, `storage/*`, `ingest/*`, `JsonUtils`) sigue siendo esqueleto que lanza `UnsupportedOperationException`. El usuario indica explícitamente qué implementar en cada paso; no adelantes clases fuera de ese alcance (p. ej. `NbaStatsHttpClient` y todo lo de GCS).
-
-`secrets/` y `*.local.properties` están en `.gitignore` (credenciales de GCP y overrides locales); `target/` también.
+El proyecto acaba de pivotar desde Java a Python. Hasta ahora solo existe el esqueleto (paquete vacío y `tests/` vacío). Los módulos se implementan de forma iterativa: el usuario indica explícitamente qué implementar en cada paso y no se deben adelantar módulos fuera de ese alcance (p. ej. clientes HTTP o lógica de GCS).
