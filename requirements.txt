@@ -2,3 +2,4 @@ requests
 google-cloud-storage
 pytest
 tenacity
+curl_cffi
