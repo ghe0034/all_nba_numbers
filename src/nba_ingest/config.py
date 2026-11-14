@@ -1,10 +1,12 @@
 """Configuración leída desde variables de entorno (sin credenciales en código)."""
 
 import os
+import random
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-DEFAULT_PAUSE_SECONDS = 1.0  # provisional: se ajusta tras la prueba real
+
+DEFAULT_PAUSE_SECONDS = random.uniform(1.5, 3.5) 
 
 
 @dataclass(frozen=True)
