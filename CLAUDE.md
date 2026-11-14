@@ -8,7 +8,7 @@ Script batch en Python 3.10+ que descarga las últimas 10 temporadas de `stats.n
 
 Stack (obligatorio):
 - **HTTP:** `requests`. No usar `urllib`, `httpx` ni `aiohttp`.
-- **Tests:** `pytest`. No usar `unittest`.
+- **Tests:** `pytest` (funciones `test_*` con `assert`, fixtures y `pytest.raises`). No usar `unittest`.
 - **Estilo:** módulos con funciones puras. Evitar clases salvo que haya una razón justificada (p. ej. excepciones propias o `dataclasses` para datos inmutables).
 - **Storage:** `google-cloud-storage`.
 
@@ -26,8 +26,8 @@ Código e identificadores en inglés. Docstrings y comentarios indispensables en
 .venv\Scripts\activate                              # activar entorno (Windows)
 pip install -r requirements.txt                     # dependencias
 pytest                                              # todos los tests
-pytest tests/test_rate_limiter.py                   # un archivo
-pytest tests/test_rate_limiter.py::test_name        # un test
+pytest tests/unit/test_seasons.py                   # un archivo
+pytest tests/unit/test_seasons.py::test_name        # un test
 ```
 
 No hay linter configurado.
@@ -36,7 +36,8 @@ No hay linter configurado.
 
 ```
 src/nba_ingest/      # paquete principal (__init__.py)
-tests/               # tests pytest
+tests/unit/          # tests pytest unitarios
+tests/integration/   # prueba manual contra stats.nba.com (no es test pytest)
 requirements.txt
 ```
 

@@ -1,8 +1,30 @@
-PROMPTS_USADOS.md
-target/
+# Entornos virtuales y dependencias (el mayor ahorro de tokens)
+.venv/
+venv/
+env/
+
+# Cachés y archivos compilados de Python / Pytest
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# Logs, temporales y datos locales
+*.log
 logs/
-secrets/
-dependency-reduced-pom.xml
-.vscode/
-.idea/
-*.iml
+tmp/
+temp/
+*.json.bak
+
+# Control de versiones y sistema
+.git/
+.DS_Store
+Thumbs.db
+
+# Documentación histórica o notas personales que no aportan al código actual
+PROMPTS_USADOS.md

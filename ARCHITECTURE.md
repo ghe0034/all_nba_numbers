@@ -9,7 +9,8 @@ temporada y fecha de descarga.
 
 Se ejecuta como un único proceso de línea de comandos (`python -m nba_ingest`), sin
 servicios ni framework. Dependencias: `requests` (HTTP), `tenacity` (reintentos),
-`google-cloud-storage` (GCS) y `pytest` (tests).
+`google-cloud-storage` (GCS) y `pytest` (tests). Los tests usan exclusivamente pytest
+(funciones `test_*`, `assert`, `pytest.raises`, fixtures y `parametrize`); no se usa `unittest`.
 
 El reto técnico central es evitar bloqueos del servidor de la NBA. Se combinan tres
 mecanismos:
@@ -87,7 +88,7 @@ Paquete `src/nba_ingest/`, con módulos de funciones:
 
 ## Estado actual
 
-Módulos y tests unitarios implementados (35 tests, con `requests` y GCS simulados).
+Módulos y tests unitarios implementados (35 tests pytest en `tests/unit/`, con `requests` y GCS simulados). Ejecución: `pytest`.
 
 El catálogo `endpoints.json` contiene solo `leaguegamelog`, con los parámetros
 indicados para la prueba. La prueba real contra `stats.nba.com` no ha conseguido
