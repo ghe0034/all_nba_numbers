@@ -1,5 +1,4 @@
-requests
-google-cloud-storage
-pytest
-tenacity
-curl_cffi
+curl_cffi==0.17.0
+google-cloud-storage==3.17.1
+pytest==9.2.0
+tenacity==9.2.1

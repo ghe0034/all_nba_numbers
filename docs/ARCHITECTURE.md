@@ -8,15 +8,15 @@ de Google Cloud Storage, organizados como capa Bronze particionada por endpoint,
 temporada y fecha de descarga.
 
 Se ejecuta como un único proceso de línea de comandos (`python -m nba_ingest`), sin
-servicios ni framework. Dependencias: `requests` (HTTP), `tenacity` (reintentos),
+servicios ni framework. Dependencias: `curl_cffi` (HTTP con `impersonate="chrome"`), `tenacity` (reintentos),
 `google-cloud-storage` (GCS) y `pytest` (tests). Los tests usan exclusivamente pytest
 (funciones `test_*`, `assert`, `pytest.raises`, fixtures y `parametrize`); no se usa `unittest`.
 
 El reto técnico central es evitar bloqueos del servidor de la NBA. Se combinan tres
 mecanismos:
-- **Headers HTTP** específicos de un navegador (`headers.py`).
-- **Pausa fija entre tareas**: el orquestador espera `NBA_PAUSE_SECONDS` entre
-  peticiones con `time.sleep`. Es un batch secuencial, así que no hace falta un
+- **Huella de navegador**: `curl_cffi` con `impersonate="chrome"` aporta TLS, User-Agent y `Sec-Ch-Ua*`; `headers.py` añade solo `Accept`, `Origin` y `Referer`.
+- **Pausa con jitter entre tareas**: el orquestador espera `NBA_PAUSE_SECONDS` más un
+  aleatorio en [0, `NBA_PAUSE_JITTER_SECONDS`] entre peticiones con `time.sleep`. Es un batch secuencial, así que no hace falta un
   limitador más sofisticado.
 - **Reintentos con backoff exponencial** (`tenacity`) ante 403, 429 y 5xx, sin
   abortar el resto del batch.
@@ -29,11 +29,11 @@ endpoint `leaguegamelog` usando `PlayerOrTeam=P` (en vez de iterar por `PlayerID
 ```mermaid
 flowchart TD
     Start([Inicio: run_tasks]) --> Loop{Para cada<br/>endpoint x temporada}
-    Loop --> Pause[time.sleep<br/>pausa fija entre tareas]
+    Loop --> Pause[time.sleep<br/>pausa + jitter entre tareas]
     Pause --> Task[run_task]
 
-    Task --> Headers[build_headers<br/>User-Agent, Referer, Origin,<br/>x-nba-stats-origin, x-nba-stats-token...]
-    Headers --> Send[_get_once<br/>requests.get a endpoint.url]
+    Task --> Headers[build_headers<br/>Accept, Origin, Referer<br/>(UA y Sec-Ch-Ua los pone impersonate)]
+    Headers --> Send[_get_once<br/>session.get(impersonate=chrome)<br/>a endpoint.url]
 
     Send --> Status{Codigo de<br/>respuesta}
 
@@ -63,23 +63,25 @@ flowchart TD
 
 Paquete `src/nba_ingest/`, con módulos de funciones:
 
-- **`config`** — variables de entorno: bucket, proyecto, User-Agent y pausa entre
-  peticiones.
+- **`config`** — variables de entorno: bucket, proyecto, User-Agent opcional, pausa,
+  jitter y número de temporadas (`NBA_SEASONS_COUNT`, por defecto 10).
 - **`catalog` / `endpoints.json`** — qué se descarga. Cada entrada define `url`
   absoluta, `fixedParams` y `seasonParamName`. La temporada no va en `fixedParams`.
 - **`seasons`** — últimas 10 temporadas en formato `YYYY-YY`.
-- **`headers`** — cabeceras que simulan un navegador. Único sitio a tocar si la NBA
+- **`headers`** — cabeceras de dominio (`Accept`, `Origin`, `Referer`). Único sitio a tocar si la NBA
   cambia sus requisitos.
-- **`client`** — petición con `requests`, timeout explícito y reintentos con
+- **`client`** — petición con la sesión `curl_cffi` (inyectada), timeout explícito y reintentos con
   `@retry` de tenacity sobre un intento (`_get_once`). Valida JSON sin re-serializar.
 - **`bronze_path`** — ruta particionada en GCS.
 - **`gcs_uploader`** — subida con `google-cloud-storage`.
-- **`ingest`** — orquestación: una tarea por endpoint × temporada, pausa entre tareas
+- **`__main__`** — CLI (`--seasons N` prevalece sobre `NBA_SEASONS_COUNT`); abre la sesión HTTP con
+  context manager y la cierra al terminar. Credenciales GCS por ADC (`gcloud auth application-default login`).
+- **`ingest`** — orquestación: una tarea por endpoint × temporada, pausa con jitter entre tareas
   y continuación ante fallos parciales.
 
 ## Decisiones
 
-- **Sin rate limiter propio.** Un `time.sleep` fijo entre tareas basta para un batch
+- **Sin rate limiter propio.** Un `time.sleep` con jitter entre tareas basta para un batch
   secuencial. Evita una dependencia y una clase de código que mantener.
 - **Sin parseo de `Retry-After`.** El backoff exponencial de tenacity con jitter es
   suficiente para los 429.
@@ -88,10 +90,9 @@ Paquete `src/nba_ingest/`, con módulos de funciones:
 
 ## Estado actual
 
-Módulos y tests unitarios implementados (35 tests pytest en `tests/unit/`, con `requests` y GCS simulados). Ejecución: `pytest`.
+Módulos y tests unitarios implementados (44 tests pytest en `tests/unit/`, con HTTP y GCS simulados). Ejecución: `pytest`. Prueba real contra la API: `pytest -m integration`.
 
-El catálogo `endpoints.json` contiene solo `leaguegamelog`, con los parámetros
-indicados para la prueba. La prueba real contra `stats.nba.com` no ha conseguido
-respuesta: el servidor cierra la conexión (`ConnectionResetError`) antes de devolver
-un código HTTP. La verificación de endpoints (tarea 0, ver `docs/spike_endpoints.md`)
-sigue pendiente.
+El catálogo `endpoints.json` contiene solo `leaguegamelog`, verificado con HTTP 200
+(ver `docs/spike_endpoints.md`). El cierre de conexión TLS que daba `requests` se
+resolvió con `curl_cffi` e `impersonate="chrome"`. Pendiente: ensayo de 1 temporada
+contra un bucket de desarrollo y backfill completo.

@@ -1,12 +1,14 @@
 """Configuración leída desde variables de entorno (sin credenciales en código)."""
 
 import os
-import random
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from nba_ingest.seasons import SEASON_COUNT
 
-DEFAULT_PAUSE_SECONDS = random.uniform(1.5, 3.5) 
+
+DEFAULT_PAUSE_SECONDS = 1.5  # pausa base; el jitter se suma en run_tasks
+DEFAULT_PAUSE_JITTER_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
@@ -15,6 +17,8 @@ class Settings:
     gcs_project: str | None
     user_agent: str | None
     pause_seconds: float
+    pause_jitter_seconds: float
+    seasons_count: int
 
 
 def load_settings(environ: Mapping[str, str] = os.environ) -> Settings:
@@ -28,4 +32,8 @@ def load_settings(environ: Mapping[str, str] = os.environ) -> Settings:
         gcs_project=environ.get("NBA_GCS_PROJECT") or None,
         user_agent=environ.get("NBA_USER_AGENT") or None,
         pause_seconds=float(environ.get("NBA_PAUSE_SECONDS", DEFAULT_PAUSE_SECONDS)),
+        pause_jitter_seconds=float(
+            environ.get("NBA_PAUSE_JITTER_SECONDS", DEFAULT_PAUSE_JITTER_SECONDS)
+        ),
+        seasons_count=int(environ.get("NBA_SEASONS_COUNT", SEASON_COUNT)),
     )

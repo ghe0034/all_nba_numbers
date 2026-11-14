@@ -6,7 +6,6 @@ from tenacity import wait_none
 from nba_ingest import client
 from nba_ingest.catalog import EndpointDefinition
 from nba_ingest.client import NbaApiError, fetch_endpoint
-from nba_ingest.headers import DEFAULT_USER_AGENT
 
 ENDPOINT = EndpointDefinition(
     id="demo",
@@ -57,7 +56,8 @@ def test_request_sends_fixed_and_season_params_headers_and_timeout():
     call = session.calls[0]
     assert call["url"] == "https://stats.nba.com/stats/demo"
     assert call["params"] == {"LeagueID": "00", "Season": "2025-26"}
-    assert call["headers"]["User-Agent"] == DEFAULT_USER_AGENT
+    assert call["headers"]["Referer"].startswith("https://www.nba.com")
+    assert call["impersonate"] == "chrome"
     assert call["timeout"] is not None
 
 

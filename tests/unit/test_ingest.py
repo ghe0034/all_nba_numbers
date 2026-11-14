@@ -73,3 +73,35 @@ def test_run_tasks_pauses_between_tasks_but_not_after_the_last_one():
     run_tasks(tasks, lambda task: None, pause_seconds=1.5, sleep=pauses.append)
 
     assert pauses == [1.5]
+
+
+def test_pause_adds_random_jitter_on_top_of_base_pause():
+    pauses = []
+    tasks = build_tasks([ENDPOINT_A], SEASONS)
+
+    run_tasks(
+        tasks,
+        lambda task: None,
+        pause_seconds=1.0,
+        jitter_seconds=0.5,
+        sleep=pauses.append,
+        uniform=lambda low, high: high,
+    )
+
+    assert pauses == [1.5]
+
+
+def test_jitter_is_drawn_from_zero_to_jitter_seconds():
+    drawn_ranges = []
+    tasks = build_tasks([ENDPOINT_A], SEASONS)
+
+    run_tasks(
+        tasks,
+        lambda task: None,
+        pause_seconds=1.0,
+        jitter_seconds=0.5,
+        sleep=lambda seconds: None,
+        uniform=lambda low, high: drawn_ranges.append((low, high)) or 0.0,
+    )
+
+    assert drawn_ranges == [(0.0, 0.5)]

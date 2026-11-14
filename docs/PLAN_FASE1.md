@@ -24,8 +24,8 @@ proyecto_baloncesto/
 │       ├── seasons.py              # cálculo de las últimas 10 temporadas
 │       ├── endpoints.json          # catálogo de endpoints (datos, no código)
 │       ├── catalog.py              # carga y validación de endpoints.json
-│       ├── headers.py              # cabeceras HTTP que simulan un navegador
-│       ├── client.py               # requests + timeout + reintentos con @retry (tenacity)
+│       ├── headers.py              # cabeceras de dominio (Accept, Origin, Referer)
+│       ├── client.py               # curl_cffi (sesión inyectada) + timeout + reintentos con @retry (tenacity)
 │       ├── bronze_path.py          # construcción de la ruta particionada en GCS
 │       ├── gcs_uploader.py         # subida a GCS (google-cloud-storage)
 │       └── ingest.py               # orquestación: tareas, pausa entre tareas, fallos parciales
@@ -49,12 +49,12 @@ Notas:
 ## Reto técnico: headers, pausas y reintentos
 
 **Headers.** `stats.nba.com` rechaza o limita peticiones que no parecen venir de su web. `headers.py` construye en cada petición:
-- `User-Agent`: navegador realista. Sobrescribible por configuración.
+- `User-Agent` y `Sec-Ch-Ua*`: los genera `impersonate="chrome"` de `curl_cffi` (coherentes con la huella TLS). Solo se envía `User-Agent` si se sobrescribe por configuración.
 - `Referer` y `Origin`: dominio de `nba.com`, igual que en la web oficial.
-- Cabeceras propias de la API (`x-nba-stats-origin`, `x-nba-stats-token`, etc.): valores verificados en la tarea 0 con una petición real del navegador. No se copian de memoria.
-- `Accept`, `Accept-Language` y `Connection: keep-alive` coherentes con el User-Agent.
+- `Accept`: `application/json, text/plain, */*`.
+- Las cabeceras `x-nba-stats-*`, `Accept-Language`, `Connection` y `Sec-Fetch-*` manuales se retiraron: con `impersonate` la petición devuelve 200 sin ellas (ver `docs/spike_endpoints.md`).
 
-**Pausa entre peticiones.** `run_tasks` llama a `time.sleep(NBA_PAUSE_SECONDS)` entre tareas consecutivas. Batch secuencial, sin paralelismo. El valor inicial (1.0 s) es provisional y se ajusta en la tarea 0; no se inventa.
+**Pausa entre peticiones.** `run_tasks` llama a `time.sleep(NBA_PAUSE_SECONDS + uniform(0, NBA_PAUSE_JITTER_SECONDS))` entre tareas consecutivas. Batch secuencial, sin paralelismo. Valores iniciales (1.5 s y 2.0 s) provisionales hasta validar el ritmo con la ejecución real.
 
 **Reintentos.** `client.py` usa `@retry` de `tenacity` sobre un intento HTTP:
 - Reintenta solo 403, 429, 500, 502, 503 y 504, con `wait_exponential_jitter`.
@@ -70,7 +70,7 @@ Cada tarea termina con `pytest` en verde y el criterio de hecho cumplido.
 ### Tarea 0 — Verificación de endpoints (spike, sin código de producción)
 - Hacer peticiones reales a los endpoints candidatos desde el navegador o con un script manual.
 - Anotar en `docs/spike_endpoints.md`: URL exacta, query params, headers que hacen falta y si fallan sin ellos, códigos de respuesta, tamaño y ritmo que tolera el servidor.
-- Estado: **bloqueada**. Desde el entorno de desarrollo, `stats.nba.com` cierra la conexión (`ConnectionResetError`) sin devolver código HTTP.
+- Estado: **hecha para `leaguegamelog`** (200, 4,5 MB, 26 401 filas para 2023-24). Evidencia en `docs/spike_endpoints.md`. Pendiente: ritmo tolerado y resto de endpoints.
 - Criterio: cada parámetro de `endpoints.json` tiene una evidencia documentada.
 
 ### Tarea 1 — Rango de temporadas (`seasons.py`)
@@ -83,7 +83,7 @@ Cada tarea termina con `pytest` en verde y el criterio de hecho cumplido.
 - Criterio: el JSON contiene solo parámetros verificados en la tarea 0.
 
 ### Tarea 3 — Headers (`headers.py`)
-- Test: el diccionario contiene `User-Agent`, `Referer`, `Origin` y las cabeceras de la API; el User-Agent se puede sobrescribir.
+- Test: el diccionario contiene `Accept`, `Referer` y `Origin`; no contiene `User-Agent` ni `Sec-*` salvo sobrescritura explícita del User-Agent.
 - Criterio: valores idénticos a los de la tarea 0.
 
 ### Tarea 4 — Cliente HTTP (`client.py`)
@@ -105,16 +105,17 @@ Cada tarea termina con `pytest` en verde y el criterio de hecho cumplido.
 - Criterio: resumen con total, éxitos y fallos; el batch sigue ante fallos parciales.
 
 ### Tarea 8 — Configuración y entrada (`config.py`, `__main__.py`)
-- Test: lee bucket, proyecto, user-agent y pausa de variables de entorno; `NBA_GCS_BUCKET` es obligatoria.
-- `__main__.py` devuelve exit code 0 solo si todas las tareas tuvieron éxito.
+- Test: lee bucket, proyecto, user-agent, pausa, jitter y `NBA_SEASONS_COUNT` (por defecto 10) de variables de entorno; `NBA_GCS_BUCKET` es obligatoria.
+- `__main__.py` devuelve exit code 0 solo si todas las tareas tuvieron éxito, acepta `--seasons N` (prevalece sobre la variable) y cierra la sesión HTTP con context manager. Test unitario de `main()` con sesión y bucket simulados.
 
 ### Tarea 9 — Prueba de fuego (prueba real, una sola petición)
 - Script temporal que instancia el cliente, lee `leaguegamelog` de `endpoints.json`, envía las cabeceras de navegador y hace una única llamada para `2023-24`.
 - Criterio: código de estado devuelto. Si es 200, primeros 300 caracteres de la respuesta.
-- Estado: **bloqueada**. El servidor cierra la conexión (`ConnectionResetError 10054`) antes de responder; no hay código HTTP que reportar.
+- Estado: **hecha** como `tests/integration/test_nba_request.py` (`pytest -m integration`), 200 con `curl_cffi`.
 
 ### Tarea 10 — Prueba end-to-end controlada
-- Ejecutar contra un bucket de **desarrollo** con credenciales en `secrets/` (gitignored), limitado a una temporada y un endpoint.
+- Autenticar con ADC: `gcloud auth application-default login` (o `GOOGLE_APPLICATION_CREDENTIALS` hacia `secrets/`, gitignored). Definir `NBA_GCS_BUCKET` de un bucket de **desarrollo**.
+- Ejecutar `python -m nba_ingest --seasons 1` (o `NBA_SEASONS_COUNT=1`): una temporada × un endpoint.
 - Verificar: objeto creado con la ruta correcta, JSON válido, bytes idénticos a la respuesta, y segunda ejecución del mismo día sin duplicados.
 - Criterio: evidencia (ruta del objeto y tamaño) anotada en `docs/spike_endpoints.md`.
 
@@ -127,8 +128,8 @@ Cada tarea termina con `pytest` en verde y el criterio de hecho cumplido.
 `requirements.txt`:
 
 ```
-requests
-google-cloud-storage
-pytest
-tenacity
+curl_cffi==0.17.0
+google-cloud-storage==3.17.1
+pytest==9.2.0
+tenacity==9.2.1
 ```
