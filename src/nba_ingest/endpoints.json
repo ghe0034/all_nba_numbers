@@ -9,5 +9,42 @@
       "SeasonType": "Regular Season"
     },
     "seasonParamName": "Season"
+  },
+  "leaguegamelog_teams": {
+    "url": "https://stats.nba.com/stats/leaguegamelog",
+    "fixedParams": {
+      "PlayerOrTeam": "T",
+      "Direction": "DESC",
+      "LeagueID": "00",
+      "Sorter": "PTS",
+      "SeasonType": "Regular Season"
+    },
+    "seasonParamName": "Season"
+  },
+  "teamgamelogs_advanced": {
+    "url": "https://stats.nba.com/stats/teamgamelogs",
+    "fixedParams": {
+      "LeagueID": "00",
+      "SeasonType": "Regular Season",
+      "MeasureType": "Advanced",
+      "PerMode": "Totals",
+      "PlusMinus": "N",
+      "PaceAdjust": "N",
+      "Rank": "N",
+      "Outcome": "",
+      "Location": "",
+      "Month": "0",
+      "SeasonSegment": "",
+      "DateFrom": "",
+      "DateTo": "",
+      "OpponentTeamID": "0",
+      "VsConference": "",
+      "VsDivision": "",
+      "GameSegment": "",
+      "Period": "0",
+      "ShotClockRange": "",
+      "LastNGames": "0"
+    },
+    "seasonParamName": "Season"
   }
 }

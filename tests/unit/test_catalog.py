@@ -46,3 +46,21 @@ def test_load_endpoints_reads_catalog_file(tmp_path):
     endpoints = load_endpoints(catalog_file)
 
     assert [endpoint.id for endpoint in endpoints] == ["demo"]
+
+
+def test_default_catalog_contains_verified_endpoints():
+    endpoints = {endpoint.id: endpoint for endpoint in load_endpoints()}
+
+    assert set(endpoints) == {
+        "leaguegamelog",
+        "leaguegamelog_teams",
+        "teamgamelogs_advanced",
+    }
+    assert endpoints["leaguegamelog"].fixed_params["PlayerOrTeam"] == "P"
+    assert endpoints["leaguegamelog_teams"].fixed_params["PlayerOrTeam"] == "T"
+    assert endpoints["leaguegamelog_teams"].url == endpoints["leaguegamelog"].url
+    assert (
+        endpoints["teamgamelogs_advanced"].url
+        == "https://stats.nba.com/stats/teamgamelogs"
+    )
+    assert endpoints["teamgamelogs_advanced"].fixed_params["MeasureType"] == "Advanced"
