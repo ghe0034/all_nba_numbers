@@ -4,6 +4,7 @@ import pytest
 
 from nba_ingest.catalog import EndpointDefinition
 from nba_ingest.client import NbaApiError
+from nba_ingest.date_range import DateRange
 from nba_ingest.ingest import (
     IngestionTask,
     TaskResult,
@@ -31,7 +32,7 @@ def test_run_task_fetches_then_uploads_to_bronze_path():
 
     run_task(
         IngestionTask(ENDPOINT_A, "2025-26"),
-        fetch=lambda endpoint, season: b"{}",
+        fetch=lambda endpoint, season, **kwargs: b"{}",
         upload=lambda path, body: uploads.append((path, body)),
         download_date=date(2026, 11, 11),
     )
@@ -119,3 +120,35 @@ def test_jitter_is_drawn_from_zero_to_jitter_seconds():
     )
 
     assert drawn_ranges == [(0.0, 0.5)]
+
+
+def test_build_tasks_attaches_date_range_to_every_task():
+    date_range = DateRange(date(2024, 1, 8), date(2024, 1, 14))
+
+    tasks = build_tasks([ENDPOINT_A], ["2023-24"], date_range)
+
+    assert tasks == [IngestionTask(ENDPOINT_A, "2023-24", date_range)]
+
+
+def test_run_task_with_range_uploads_to_incremental_path_and_passes_range():
+    uploads = []
+    received_ranges = []
+    date_range = DateRange(date(2024, 1, 8), date(2024, 1, 14))
+
+    def fake_fetch(endpoint, season, *, date_range):
+        received_ranges.append(date_range)
+        return b"{}"
+
+    run_task(
+        IngestionTask(ENDPOINT_A, "2023-24", date_range),
+        fetch=fake_fetch,
+        upload=lambda path, body: uploads.append(path),
+        download_date=date(2024, 1, 15),
+    )
+
+    assert received_ranges == [date_range]
+    expected_path = (
+        "bronze_incremental/a/season=2023-24/date_from=2024-01-08/"
+        "date_to=2024-01-14/download_date=2024-01-15/a.json"
+    )
+    assert uploads == [expected_path]

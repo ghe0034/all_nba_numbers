@@ -12,9 +12,10 @@ from google.api_core.exceptions import GoogleAPIError
 from google.auth.exceptions import GoogleAuthError
 from requests.exceptions import RequestException as GcsTransportError
 
-from nba_ingest.bronze_path import build_bronze_path
+from nba_ingest.bronze_path import build_bronze_path, build_incremental_bronze_path
 from nba_ingest.catalog import EndpointDefinition
 from nba_ingest.client import NbaApiError
+from nba_ingest.date_range import DateRange
 
 # Errores operativos (red, HTTP, GCS, JSON) que no deben detener el batch.
 # Los errores de programación (TypeError, KeyError...) se dejan propagar.
@@ -33,6 +34,7 @@ OPERATIONAL_ERRORS = (
 class IngestionTask:
     endpoint: EndpointDefinition
     season: str
+    date_range: DateRange | None = None
 
 
 @dataclass(frozen=True)
@@ -43,12 +45,14 @@ class TaskResult:
 
 
 def build_tasks(
-    endpoints: Iterable[EndpointDefinition], seasons: Iterable[str]
+    endpoints: Iterable[EndpointDefinition],
+    seasons: Iterable[str],
+    date_range: DateRange | None = None,
 ) -> list[IngestionTask]:
-    """Produce todas las combinaciones endpoint × temporada."""
+    """Produce todas las combinaciones endpoint × temporada, con el rango si se indica."""
     season_list = list(seasons)
     return [
-        IngestionTask(endpoint, season)
+        IngestionTask(endpoint, season, date_range)
         for endpoint in endpoints
         for season in season_list
     ]
@@ -57,13 +61,18 @@ def build_tasks(
 def run_task(
     task: IngestionTask,
     *,
-    fetch: Callable[[EndpointDefinition, str], bytes],
+    fetch: Callable[..., bytes],
     upload: Callable[[str, bytes], None],
     download_date: date,
 ) -> None:
-    """Descarga una tarea y la sube a su ruta Bronze."""
-    body = fetch(task.endpoint, task.season)
-    object_path = build_bronze_path(task.endpoint.id, task.season, download_date)
+    """Descarga una tarea y la sube a su ruta Bronze (incremental si lleva rango)."""
+    body = fetch(task.endpoint, task.season, date_range=task.date_range)
+    if task.date_range is None:
+        object_path = build_bronze_path(task.endpoint.id, task.season, download_date)
+    else:
+        object_path = build_incremental_bronze_path(
+            task.endpoint.id, task.season, task.date_range, download_date
+        )
     upload(object_path, body)
 
 

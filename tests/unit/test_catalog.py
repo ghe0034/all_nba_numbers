@@ -64,3 +64,19 @@ def test_default_catalog_contains_verified_endpoints():
         == "https://stats.nba.com/stats/teamgamelogs"
     )
     assert endpoints["teamgamelogs_advanced"].fixed_params["MeasureType"] == "Advanced"
+
+
+def test_date_param_names_default_to_date_from_and_date_to():
+    endpoint = parse_endpoints(valid_catalog())[0]
+
+    assert endpoint.date_from_param_name == "DateFrom"
+    assert endpoint.date_to_param_name == "DateTo"
+
+
+def test_date_param_names_can_be_overridden_in_catalog():
+    endpoint = parse_endpoints(
+        valid_catalog(dateFromParamName="StartDate", dateToParamName="EndDate")
+    )[0]
+
+    assert endpoint.date_from_param_name == "StartDate"
+    assert endpoint.date_to_param_name == "EndDate"

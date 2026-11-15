@@ -17,6 +17,8 @@ class EndpointDefinition:
     url: str
     season_param_name: str
     fixed_params: dict[str, str]
+    date_from_param_name: str = "DateFrom"
+    date_to_param_name: str = "DateTo"
 
 
 def build_endpoint(endpoint_id: str, raw_entry: dict[str, Any]) -> EndpointDefinition:
@@ -32,6 +34,8 @@ def build_endpoint(endpoint_id: str, raw_entry: dict[str, Any]) -> EndpointDefin
         url=raw_entry["url"],
         season_param_name=raw_entry["seasonParamName"],
         fixed_params=dict(raw_entry["fixedParams"]),
+        date_from_param_name=raw_entry.get("dateFromParamName", "DateFrom"),
+        date_to_param_name=raw_entry.get("dateToParamName", "DateTo"),
     )
     if endpoint.season_param_name in endpoint.fixed_params:
         raise ValueError(
@@ -43,10 +47,14 @@ def build_endpoint(endpoint_id: str, raw_entry: dict[str, Any]) -> EndpointDefin
 
 def parse_endpoints(catalog: dict[str, Any]) -> list[EndpointDefinition]:
     """Convierte el catálogo completo; la clave de cada entrada es su id."""
-    return [build_endpoint(endpoint_id, entry) for endpoint_id, entry in catalog.items()]
+    return [
+        build_endpoint(endpoint_id, entry) for endpoint_id, entry in catalog.items()
+    ]
 
 
-def load_endpoints(catalog_path: Path = DEFAULT_CATALOG_PATH) -> list[EndpointDefinition]:
+def load_endpoints(
+    catalog_path: Path = DEFAULT_CATALOG_PATH,
+) -> list[EndpointDefinition]:
     """Lee el catálogo JSON desde disco y devuelve los endpoints validados."""
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
     return parse_endpoints(catalog)

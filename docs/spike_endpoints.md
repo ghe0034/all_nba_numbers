@@ -80,3 +80,40 @@ Columnas: `SEASON_YEAR, TEAM_ID, TEAM_ABBREVIATION, TEAM_NAME, GAME_ID, GAME_DAT
 - Objeto generado: `gs://nba-bronze-dev-ghe0034/bronze/leaguegamelog/season=2026-27/download_date=2026-11-14/leaguegamelog.json`
 - Tamaño: 706 267 bytes (689,71 KiB).
 - Idempotencia: verificada en una segunda ejecución; se sobrescribe el mismo objeto, sin duplicados.
+
+## Parámetros de fecha `DateFrom`/`DateTo` (Fase 2, Paso 0)
+
+Spike 2026-11-15, `Season=2023-24`, formato `MM/DD/YYYY`, vía `client`-equivalente (mismos headers e `impersonate="chrome"`). Los tres endpoints usan `DateFrom`/`DateTo` como nombres (`leaguegamelog` no los trae en `fixedParams`; `teamgamelogs_advanced` los trae vacíos).
+
+| Petición (ventana) | HTTP | Filas | GAME_DATE min–max | Observación |
+|---|---|---|---|---|
+| `leaguegamelog` `P`, 01/08/2024–01/14/2024 | 200 | 1 064 | 2024-01-08 – 2024-01-14 | eco `DateFrom`/`DateTo` correcto |
+| `leaguegamelog` `T`, 01/08/2024–01/14/2024 | 200 | 98 | 2024-01-08 – 2024-01-14 | 49 partidos × 2 equipos |
+| `teamgamelogs_advanced`, 01/08/2024–01/14/2024 | 200 | 98 | 2024-01-08 – 2024-01-14 | |
+| `teamgamelogs_advanced`, 01/14/2024–01/14/2024 | 200 | 10 | 2024-01-14 – 2024-01-14 | **ambos extremos inclusivos** |
+| `teamgamelogs_advanced`, 07/01/2024–07/07/2024 | 200 | 0 | — | ventana sin partidos: 200 con `rowSet` vacío |
+
+Conclusiones: el formato `MM/DD/YYYY` funciona; los extremos son inclusivos; no hay filas fuera de ventana; una ventana vacía no es error HTTP. Un rango que cruza temporadas se resuelve enviando el mismo rango a cada temporada (el parámetro `Season` filtra la intersección).
+
+## Ingesta incremental real en GCS (Fase 2, Bloque B)
+
+Fecha: 2026-11-15 (UTC ~10:37–10:40). Comando ejecutado dos veces seguidas: `python -m nba_ingest --days-back 7`. Ventana resultante: `date_from=2026-11-08`, `date_to=2026-11-15`, temporada `2026-27`, 3 endpoints.
+
+| Ejecución | Salida | Exit |
+|---|---|---|
+| 1 | `Tareas: 3 \| fallos: 0` | 0 |
+| 2 | `Tareas: 3 \| fallos: 0` | 0 |
+
+Objetos resultantes (`gcloud storage ls -l -r gs://nba-bronze-dev-ghe0034/bronze_incremental/`): exactamente 3 `.json`, uno por endpoint, sin duplicados:
+
+| Objeto | Bytes | Última escritura (UTC) |
+|---|---|---|
+| `bronze_incremental/leaguegamelog/season=2026-27/date_from=2026-11-08/date_to=2026-11-15/download_date=2026-11-15/leaguegamelog.json` | 188 659 | 10:39:17 |
+| `bronze_incremental/leaguegamelog_teams/.../leaguegamelog_teams.json` | 16 085 | 10:39:19 |
+| `bronze_incremental/teamgamelogs_advanced/.../teamgamelogs_advanced.json` | 27 518 | 10:39:23 |
+
+Idempotencia: las rutas se calculan solo con endpoint, temporada, ventana y `download_date`, así que la segunda ejecución apunta a los mismos 3 objetos y los sobrescribe. Las tres últimas escrituras coinciden con la segunda ejecución y cada objeto tiene una sola generación.
+
+Limitación: el bucket **no tiene versionado** (`versioning.enabled` vacío), así que no queda histórico que demuestre la sobrescritura frente a la primera escritura, y no se capturaron las horas de la primera ejecución. La idempotencia queda demostrada por rutas deterministas (con test unitario) y por la ausencia de objetos duplicados, no por el histórico del bucket.
+
+`bronze/` no se tocó: los objetos `bronze/*/download_date=2026-11-15/*.json` (93, de la carga completa de ese día) tienen su última modificación a las 09:31:20 UTC, anterior a ambas ejecuciones.

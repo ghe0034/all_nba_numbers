@@ -1,11 +1,13 @@
 import json
+from datetime import date
 
 import pytest
 from tenacity import wait_none
 
 from nba_ingest import client
 from nba_ingest.catalog import EndpointDefinition
-from nba_ingest.client import NbaApiError, fetch_endpoint
+from nba_ingest.client import NbaApiError, build_request_params, fetch_endpoint
+from nba_ingest.date_range import DateRange
 
 ENDPOINT = EndpointDefinition(
     id="demo",
@@ -39,7 +41,9 @@ class FakeSession:
 @pytest.fixture(autouse=True)
 def without_backoff_waits(monkeypatch):
     """Quita las esperas exponenciales de tenacity para que los tests sean instantáneos."""
-    monkeypatch.setattr(client, "_get_once", client._get_once.retry_with(wait=wait_none()))
+    monkeypatch.setattr(
+        client, "_get_once", client._get_once.retry_with(wait=wait_none())
+    )
 
 
 def test_returns_raw_bytes_unchanged_on_200():
@@ -102,3 +106,47 @@ def test_invalid_json_body_raises_decode_error():
 
     with pytest.raises(json.JSONDecodeError):
         fetch_endpoint(ENDPOINT, "2025-26", session=session)
+
+
+DATE_RANGE = DateRange(date(2024, 1, 8), date(2024, 1, 14))
+
+
+def test_build_request_params_adds_nba_formatted_date_range():
+    params = build_request_params(ENDPOINT, "2023-24", DATE_RANGE)
+
+    assert params == {
+        "LeagueID": "00",
+        "Season": "2023-24",
+        "DateFrom": "01/08/2024",
+        "DateTo": "01/14/2024",
+    }
+
+
+def test_date_range_overrides_empty_date_params_from_fixed_params():
+    endpoint = EndpointDefinition(
+        id="demo",
+        url="https://stats.nba.com/stats/demo",
+        season_param_name="Season",
+        fixed_params={"DateFrom": "", "DateTo": ""},
+    )
+
+    params = build_request_params(endpoint, "2023-24", DATE_RANGE)
+
+    assert params["DateFrom"] == "01/08/2024"
+    assert params["DateTo"] == "01/14/2024"
+
+
+def test_build_request_params_without_range_sends_no_date_params():
+    assert build_request_params(ENDPOINT, "2023-24") == {
+        "LeagueID": "00",
+        "Season": "2023-24",
+    }
+
+
+def test_fetch_endpoint_sends_date_range_to_api():
+    session = FakeSession([FakeResponse(200, VALID_BODY)])
+
+    fetch_endpoint(ENDPOINT, "2023-24", session=session, date_range=DATE_RANGE)
+
+    assert session.calls[0]["params"]["DateFrom"] == "01/08/2024"
+    assert session.calls[0]["params"]["DateTo"] == "01/14/2024"
