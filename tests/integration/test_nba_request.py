@@ -1,11 +1,12 @@
-import sys
 import json
-import pytest
-
+import sys
 from pathlib import Path
+
+import pytest
 from curl_cffi import requests
-from nba_ingest.client import fetch_endpoint
+
 from nba_ingest.catalog import EndpointDefinition
+from nba_ingest.client import fetch_endpoint
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 

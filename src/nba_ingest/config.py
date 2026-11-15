@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 from nba_ingest.seasons import SEASON_COUNT
 
-
 DEFAULT_PAUSE_SECONDS = 1.5  # pausa base; el jitter se suma en run_tasks
 DEFAULT_PAUSE_JITTER_SECONDS = 2.0
 

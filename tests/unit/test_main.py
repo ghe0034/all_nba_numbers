@@ -1,10 +1,11 @@
-from datetime import date
 from types import SimpleNamespace
+from typing import ClassVar
 
 import pytest
 
 from nba_ingest import __main__ as entrypoint
 from nba_ingest.catalog import EndpointDefinition
+from nba_ingest.client import NbaApiError
 
 ENDPOINT = EndpointDefinition("demo", "https://stats.nba.com/stats/demo", "Season", {})
 
@@ -12,7 +13,7 @@ ENDPOINT = EndpointDefinition("demo", "https://stats.nba.com/stats/demo", "Seaso
 class FakeSession:
     """Sesión falsa que registra si se cerró."""
 
-    instances = []
+    instances: ClassVar[list["FakeSession"]] = []
 
     def __init__(self):
         self.closed = False
@@ -61,7 +62,7 @@ def test_main_closes_http_session(fake_bucket):
 
 def test_main_returns_one_when_any_task_fails(fake_bucket, monkeypatch):
     def failing_fetch(*args, **kwargs):
-        raise RuntimeError("boom")
+        raise NbaApiError("boom")
 
     monkeypatch.setattr(entrypoint, "fetch_endpoint", failing_fetch)
 

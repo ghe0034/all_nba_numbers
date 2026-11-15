@@ -1,6 +1,9 @@
 from datetime import date
 
+import pytest
+
 from nba_ingest.catalog import EndpointDefinition
+from nba_ingest.client import NbaApiError
 from nba_ingest.ingest import (
     IngestionTask,
     TaskResult,
@@ -44,7 +47,7 @@ def test_run_task_fetches_then_uploads_to_bronze_path():
 def test_run_tasks_continues_after_failure_and_reports_each_result():
     def failing_for_first_task(task):
         if task.season == "2024-25" and task.endpoint.id == "a":
-            raise RuntimeError("boom")
+            raise NbaApiError("boom")
 
     tasks = build_tasks([ENDPOINT_A], SEASONS)
 
@@ -52,6 +55,17 @@ def test_run_tasks_continues_after_failure_and_reports_each_result():
 
     assert [result.success for result in results] == [False, True]
     assert "boom" in results[0].error
+
+
+@pytest.mark.parametrize("programming_error", [TypeError("bug"), KeyError("bug")])
+def test_run_tasks_propagates_programming_errors(programming_error):
+    def buggy_task(task):
+        raise programming_error
+
+    tasks = build_tasks([ENDPOINT_A], SEASONS)
+
+    with pytest.raises(type(programming_error)):
+        run_tasks(tasks, buggy_task)
 
 
 def test_all_succeeded_requires_every_task_to_succeed():

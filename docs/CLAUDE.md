@@ -8,7 +8,7 @@ Script batch en Python 3.10+ que descarga las últimas 10 temporadas de `stats.n
 
 Stack (obligatorio):
 - **HTTP:** `curl_cffi` con `impersonate="chrome"` (el TLS de `requests` es rechazado por stats.nba.com). No usar `requests`, `urllib`, `httpx` ni `aiohttp`.
-- **Tests:** `pytest` (funciones `test_*` con `assert`, fixtures y `pytest.raises`). No usar `unittest`.
+- **Tests:** `pytest` (funciones `test_*` con `assert`, fixtures y `pytest.raises`). No usar `unittest` a no ser que sea estrictamente necesario.
 - **Estilo:** módulos con funciones puras. Evitar clases salvo que haya una razón justificada (p. ej. excepciones propias o `dataclasses` para datos inmutables).
 - **Storage:** `google-cloud-storage`.
 

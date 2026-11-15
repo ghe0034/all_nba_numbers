@@ -1,13 +1,32 @@
 """Orquestación del batch: una tarea por par endpoint × temporada."""
 
+import json
+import random
+import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date
-import random
-import time
+
+from curl_cffi.requests.exceptions import RequestException as CurlRequestError
+from google.api_core.exceptions import GoogleAPIError
+from google.auth.exceptions import GoogleAuthError
+from requests.exceptions import RequestException as GcsTransportError
 
 from nba_ingest.bronze_path import build_bronze_path
 from nba_ingest.catalog import EndpointDefinition
+from nba_ingest.client import NbaApiError
+
+# Errores operativos (red, HTTP, GCS, JSON) que no deben detener el batch.
+# Los errores de programación (TypeError, KeyError...) se dejan propagar.
+OPERATIONAL_ERRORS = (
+    NbaApiError,
+    CurlRequestError,
+    json.JSONDecodeError,
+    UnicodeDecodeError,
+    GoogleAPIError,
+    GoogleAuthError,
+    GcsTransportError,
+)
 
 
 @dataclass(frozen=True)
@@ -69,7 +88,7 @@ def run_tasks(
             sleep(pause_seconds + uniform(0.0, jitter_seconds))
         try:
             run_one(task)
-        except Exception as error:
+        except OPERATIONAL_ERRORS as error:
             results.append(TaskResult(task, success=False, error=str(error)))
         else:
             results.append(TaskResult(task, success=True, error=None))
