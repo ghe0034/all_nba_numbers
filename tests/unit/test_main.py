@@ -36,9 +36,10 @@ class FakeBucket:
 
 
 @pytest.fixture
-def fake_bucket(monkeypatch):
+def fake_bucket(monkeypatch, tmp_path):
     bucket = FakeBucket()
     FakeSession.instances = []
+    monkeypatch.chdir(tmp_path)  # evita leer el .env real del repositorio
     monkeypatch.setenv("NBA_GCS_BUCKET", "bucket-test")
     monkeypatch.setenv("NBA_PAUSE_SECONDS", "0")
     monkeypatch.delenv("NBA_SEASONS_COUNT", raising=False)

@@ -7,6 +7,7 @@ from datetime import date
 from functools import partial
 
 from curl_cffi import requests
+from dotenv import find_dotenv, load_dotenv
 
 from nba_ingest.catalog import load_endpoints
 from nba_ingest.client import fetch_endpoint
@@ -26,7 +27,13 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def load_local_env() -> None:
+    """Carga `.env` desde el directorio actual o sus padres; no sobrescribe el entorno real."""
+    load_dotenv(find_dotenv(usecwd=True), override=False)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    load_local_env()
     args = parse_args(argv)
     settings = load_settings()
     seasons_count = args.seasons or settings.seasons_count

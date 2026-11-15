@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "proyecto-baloncesto"
+version = "0.2.0"
+description = "Ingesta de stats.nba.com a Bronze (GCS) y capa Silver en Parquet"
+requires-python = ">=3.10"
+dependencies = [
+    "curl_cffi>=0.17.0",
+    "google-cloud-storage>=3.17.1",
+    "tenacity>=9.2.1",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+silver = [
+    "pandas>=2.2",
+    "pyarrow>=17.0",
+]
+dev = [
+    "pytest>=9.2.0",
+    "ruff>=0.8.0",
+    "pre-commit>=4.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["nba_ingest*", "nba_silver*"]
+
+[tool.setuptools.package-data]
+nba_ingest = ["endpoints.json"]
