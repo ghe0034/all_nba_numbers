@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "proyecto-baloncesto"
-version = "0.3.0"
-description = "Ingesta de stats.nba.com a Bronze (GCS), capa Silver en Parquet y features Gold por partido"
+version = "0.4.0"
+description = "Pipeline NBA: ingesta Bronze (GCS), Silver y Gold en Parquet, orquestado en Cloud Run"
 requires-python = ">=3.10"
 dependencies = [
     "curl_cffi>=0.17.0",
@@ -27,7 +27,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["nba_ingest*", "nba_silver*", "nba_gold*"]
+include = ["nba_ingest*", "nba_silver*", "nba_gold*", "nba_pipeline*"]
 
 [tool.setuptools.package-data]
 nba_ingest = ["endpoints.json"]
