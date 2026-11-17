@@ -128,6 +128,21 @@ def test_clean_returns_empty_frame_without_error_when_no_rows():
     assert cleaned.empty
 
 
+def test_clean_skips_schema_validation_when_payload_has_no_rows():
+    df = parse_nba_json(
+        json.dumps(
+            {
+                "resultSets": [
+                    {"name": "x", "headers": ["SEASON_ID", "TEAM_ID"], "rowSet": []}
+                ]
+            }
+        ),
+        DOWNLOAD_OLD,
+    )
+
+    assert clean_dataframe(df, TEAM_GAME_LOGS).empty
+
+
 def test_clean_does_not_mutate_input_frame():
     df = make_silver_frame(make_record())
     original_game_date = df["game_date"].iloc[0]

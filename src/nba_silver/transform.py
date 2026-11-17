@@ -46,15 +46,18 @@ def _minutes_text_to_float(value) -> float:
 
 
 def clean_dataframe(df: pd.DataFrame, spec: TableSpec) -> pd.DataFrame:
-    """Valida columnas, limpia tipos de datos y añade campos derivados"""
+    """Valida columnas, limpia tipos de datos y añade campos derivados.
+
+    Un payload sin filas (p. ej. una semana sin partidos) se devuelve tal cual: no hay datos que validar.
+    """
+    if df.empty:
+        return df
+
     missing = set(spec.required_cols) - set(df.columns)
     if missing:
         raise SchemaValidationError(
             f"Faltan columnas en {spec.table_name}: {sorted(missing)}"
         )
-
-    if df.empty:
-        return df
 
     cleaned = df.copy()
 
