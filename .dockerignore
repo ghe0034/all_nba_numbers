@@ -1,0 +1,32 @@
+# Secretos y entornos locales
+.env
+.env.*
+.venv
+venv
+*.pem
+*key*.json
+*credentials*.json
+service-account*.json
+
+# Control de versiones y herramientas
+.git
+.gitignore
+.claude
+.vscode
+.idea
+.pre-commit-config.yaml
+
+# Cachés y artefactos de Python
+__pycache__
+*.pyc
+*.egg-info
+build
+dist
+.pytest_cache
+.ruff_cache
+
+# No necesarios en tiempo de ejecución (endpoints.json vive en src/ y NO se excluye)
+tests
+docs
+Dockerfile
+.dockerignore
