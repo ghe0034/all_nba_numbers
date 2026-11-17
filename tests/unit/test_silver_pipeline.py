@@ -73,7 +73,11 @@ def test_process_season_skips_write_when_all_fragments_have_zero_rows(fake_bucke
     empty_payload = json.dumps(
         {
             "resultSets": [
-                {"name": "x", "headers": ["SEASON_ID", "TEAM_ID"], "rowSet": []}
+                {
+                    "name": "x",
+                    "headers": [col.upper() for col in TEAM_GAME_LOGS.required_cols],
+                    "rowSet": [],
+                }
             ]
         }
     ).encode()
